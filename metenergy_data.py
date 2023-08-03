@@ -3,6 +3,7 @@ import numpy as np
 import os, urllib, warnings
 from pathlib import Path
 from entsoe import EntsoePandasClient
+from ElexonDataPortal import api as elexon_api
 
 class metenergy_data(object):
     """
@@ -284,6 +285,37 @@ class metenergy_data(object):
         dem = client.query_load(zone, start = start, end = end)
 
         return dem[dem.index.minute == 0]
+    
+    @staticmethod
+    def get_demand_elexon(timeline:pd.DatetimeIndex, ELEXON_API_KEY:str)->pd.Series:
+        """
+        This function returns the electricity demand for UK using the API from the ELEXON Platform (see )
+
+         Parameters
+        ----------
+        timeline: pandas.DatetimeIndex
+            The period considered to download the data. It must be timezoned
+        ELEXON_API_KEY: str
+            API KEY to use the API
+
+        Returns
+        -------
+        pandas.DataFrame:
+            time-series with electricity demand
+
+
+        """
+        assert isinstance(timeline, pd.DatetimeIndex), "timeline must be a time index"
+        assert (timeline.tzinfo is not None), "timeline must be timezoned"
+        # Add to config
+        client = elexon_api.Client(ELEXON_API_KEY, non_local_tz='Europe/Berlin')
+
+        start = timeline.min()
+        end   = timeline.max()
+
+        dem = client.get_B0610(start, end)
+
+        return dem[dem.datetime.dt.minute == 0]
 
     @staticmethod
     def get_capacity_entsoe(zone:str, year:int, MY_API_KEY:str)->pd.DataFrame:
@@ -315,6 +347,38 @@ class metenergy_data(object):
         )
 
         return(cap)
+    
+    @staticmethod
+    def get_capacity_elexon(timeline:pd.DatetimeIndex, ELEXON_API_KEY:str)->pd.DataFrame:
+        """
+        This function returns the installed capacity (MW) for a specific zone using the API from the Elexon Data Portal
+         Parameters
+        ----------
+         
+        date:pandas.DateTimeIndex
+            Date for the installed capacity
+        ELEXON_API_KEY: str
+            API KEY to use with the Elexon API
+
+        Returns
+        -------
+        pandas.DataFrame:
+            Table with the installed capacity in MW for each technology
+
+
+        """
+        assert isinstance(timeline, pd.DatetimeIndex), "timeline must be a time index"
+        assert (timeline.tzinfo is not None), "timeline must be timezoned"
+        # Add to config
+        client = elexon_api.Client(ELEXON_API_KEY, non_local_tz='Europe/Berlin')
+
+        start = timeline.min()
+        end   = timeline.max()
+
+        cap = client.get_B1410(start, end)
+        cap['powerSystemResourceType'] = cap['powerSystemResourceType'].str.replace('"', '')
+
+        return cap[['powerSystemResourceType', 'quantity']].set_index('powerSystemResourceType').transpose()
     
             
 
